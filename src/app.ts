@@ -60,11 +60,14 @@ class SensorViewer {
   private pendingGyro: any = null;
   private pendingGPS: any = null;
   private geoWatchId: number | null = null;
+  private pearlPos = { x: 0, y: 0 };
+  private pearlVel = { x: 0, y: 0 };
+  private pearlRadius = 20;
   private lastAccelReading: { x: number; y: number; z: number } | null = null;
   private gravityEstimate = { x: 0, y: 0, z: 0 };
   private readonly gravityAlpha = 0.8;
   private refreshTimer: number | null = null;
-  private readonly refreshIntervalMs = 100;
+  private readonly refreshIntervalMs = 16; // 60fps for smoother updates
 
   constructor() {
     this.statusEl = this.getElementById('status');
@@ -630,16 +633,45 @@ class SensorViewer {
     const accelX = Math.round((this.currentMeasurement.linearAccelX || 0) * 10) / 10;
     const accelY = Math.round((this.currentMeasurement.linearAccelY || 0) * 10) / 10;
     const accelZ = Math.round((this.currentMeasurement.linearAccelZ || 0) * 10) / 10;
-    let posX = centerX - scale * accelX;
-    let posY = centerY - scale * accelY;
-    const radius = Math.max(5, Math.min(35, 20 - 2 * accelZ));
-    posX = Math.max(radius, Math.min(this.vizCanvas.width - radius, posX));
-    posY = Math.max(radius, Math.min(this.vizCanvas.height - radius, posY));
+    const targetX = centerX - scale * accelX;
+    const targetY = centerY - scale * accelY;
+    const targetRadius = Math.max(5, Math.min(35, 20 - 2 * accelZ));
+
+    // Spring physics
+    const k = 5000; // stronger spring for very responsive movement
+    const mass = 1;
+    const damping = 0.1; // much less damping for quick response
+    const dt = 0.016; // 16ms for 60fps
+
+    // Spring force towards target
+    const forceX = k * (targetX - this.pearlPos.x);
+    const forceY = k * (targetY - this.pearlPos.y);
+
+    // Update velocity
+    this.pearlVel.x += (forceX / mass) * dt;
+    this.pearlVel.y += (forceY / mass) * dt;
+
+    // Apply damping
+    this.pearlVel.x *= damping;
+    this.pearlVel.y *= damping;
+
+    // Update position
+    this.pearlPos.x += this.pearlVel.x * dt;
+    this.pearlPos.y += this.pearlVel.y * dt;
+
+    // Clamp position to canvas bounds
+    this.pearlPos.x = Math.max(targetRadius, Math.min(this.vizCanvas.width - targetRadius, this.pearlPos.x));
+    this.pearlPos.y = Math.max(targetRadius, Math.min(this.vizCanvas.height - targetRadius, this.pearlPos.y));
+
+    // Update radius (simple, no spring for radius)
+    this.pearlRadius = targetRadius;
+
+    // Draw
     this.vizCtx.clearRect(0, 0, this.vizCanvas.width, this.vizCanvas.height);
     this.vizCtx.fillStyle = 'white';
     this.vizCtx.fillRect(0, 0, this.vizCanvas.width, this.vizCanvas.height);
     this.vizCtx.beginPath();
-    this.vizCtx.arc(posX, posY, radius, 0, 2 * Math.PI);
+    this.vizCtx.arc(this.pearlPos.x, this.pearlPos.y, this.pearlRadius, 0, 2 * Math.PI);
     this.vizCtx.fillStyle = 'black';
     this.vizCtx.fill();
   }
@@ -703,6 +735,11 @@ class SensorViewer {
     const size = Math.min(availableWidth, availableHeight, 400); // max 400 to prevent too large
     this.vizCanvas.width = size;
     this.vizCanvas.height = size;
+    // Reset pearl position to center
+    this.pearlPos.x = size / 2;
+    this.pearlPos.y = size / 2;
+    this.pearlVel.x = 0;
+    this.pearlVel.y = 0;
   }
 }
 
