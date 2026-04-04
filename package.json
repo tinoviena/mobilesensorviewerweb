@@ -1,0 +1,15 @@
+{
+  "name": "mobile-sensor-viewer",
+  "version": "1.0.0",
+  "description": "Display accelerometer and gyroscope sensor values",
+  "type": "module",
+  "scripts": {
+    "prebuild": "node ./scripts/update-build-number.js",
+    "build": "tsc",
+    "dev": "tsc --watch",
+    "serve": "python3 -m http.server 8080"
+  },
+  "devDependencies": {
+    "typescript": "^5.3.3"
+  }
+}
