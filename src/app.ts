@@ -1,3 +1,21 @@
+interface SensorRecord {
+  id?: number;
+  timestamp: string;
+  sensorAPI: string;
+  gpsLat: number | null;
+  gpsLon: number | null;
+  gpsAcc: number | null;
+  accelX: number | null;
+  accelY: number | null;
+  accelZ: number | null;
+  linearAccelX: number | null;
+  linearAccelY: number | null;
+  linearAccelZ: number | null;
+  gyroX: number | null;
+  gyroY: number | null;
+  gyroZ: number | null;
+}
+
 class SensorViewer {
   private statusEl: HTMLElement;
   private enableButton: HTMLButtonElement;
@@ -11,6 +29,26 @@ class SensorViewer {
   private accelAvailableEl: HTMLElement;
   private gyroAvailableEl: HTMLElement;
   private linearAccelAvailableEl: HTMLElement;
+  private downloadClearButton: HTMLButtonElement;
+  private db: IDBDatabase | null = null;
+  private readonly dbName = 'sensor-viewer-db';
+  private readonly storeName = 'measurements';
+  private currentMeasurement: SensorRecord = {
+    timestamp: '',
+    sensorAPI: 'unknown',
+    gpsLat: null,
+    gpsLon: null,
+    gpsAcc: null,
+    accelX: null,
+    accelY: null,
+    accelZ: null,
+    linearAccelX: null,
+    linearAccelY: null,
+    linearAccelZ: null,
+    gyroX: null,
+    gyroY: null,
+    gyroZ: null,
+  };
   private isListening: boolean = false;
   private pendingLinearAccel: any = null;
   private pendingAccel: any = null;
@@ -59,8 +97,10 @@ class SensorViewer {
     this.accelAvailableEl = this.getElementById('accelAvailable');
     this.gyroAvailableEl = this.getElementById('gyroAvailable');
     this.linearAccelAvailableEl = this.getElementById('linearAccelAvailable');
+    this.downloadClearButton = this.getElementById('downloadClearButton') as HTMLButtonElement;
 
     this.setupEventListeners();
+    this.initDatabase();
     this.checkDeviceMotionPermission();
   }
 
@@ -74,6 +114,7 @@ class SensorViewer {
 
   private setupEventListeners(): void {
     this.enableButton.addEventListener('click', () => this.requestSensorPermission());
+    this.downloadClearButton.addEventListener('click', () => this.downloadAndEmptyDB());
   }
 
   private checkDeviceMotionPermission(): void {
@@ -160,6 +201,7 @@ class SensorViewer {
     this.enableButton.disabled = true;
     this.enableButton.textContent = 'Sensors Active';
     this.sensorAPIEl.textContent = 'DeviceMotionEvent (iOS)';
+    this.currentMeasurement.sensorAPI = 'DeviceMotionEvent (iOS)';
 
     window.addEventListener('devicemotion', (event: DeviceMotionEvent) => {
       if (event.accelerationIncludingGravity) {
@@ -184,6 +226,7 @@ class SensorViewer {
     this.enableButton.disabled = true;
     this.enableButton.textContent = 'Sensors Active';
     this.sensorAPIEl.textContent = 'DeviceMotionEvent (Legacy)';
+    this.currentMeasurement.sensorAPI = 'DeviceMotionEvent (Legacy)';
 
     window.addEventListener('devicemotion', (event: DeviceMotionEvent) => {
       if (event.accelerationIncludingGravity) {
@@ -199,6 +242,165 @@ class SensorViewer {
     });
 
     this.startGPS();
+  }
+
+  private initDatabase(): void {
+    const request = indexedDB.open(this.dbName, 1);
+
+    request.onupgradeneeded = () => {
+      const db = request.result;
+      if (!db.objectStoreNames.contains(this.storeName)) {
+        db.createObjectStore(this.storeName, { keyPath: 'id', autoIncrement: true });
+      }
+    };
+
+    request.onsuccess = () => {
+      this.db = request.result;
+      console.log('IndexedDB initialized:', this.dbName);
+    };
+
+    request.onerror = () => {
+      console.error('IndexedDB init failed:', request.error);
+    };
+  }
+
+  private async getAllRecords(): Promise<SensorRecord[]> {
+    if (!this.db) {
+      return [];
+    }
+
+    return new Promise((resolve, reject) => {
+      const transaction = this.db!.transaction(this.storeName, 'readonly');
+      const store = transaction.objectStore(this.storeName);
+      const request = store.openCursor();
+      const records: SensorRecord[] = [];
+
+      request.onsuccess = (event: Event) => {
+        const cursor = (event.target as IDBRequest).result as IDBCursorWithValue | null;
+        if (cursor) {
+          records.push(cursor.value as SensorRecord);
+          cursor.continue();
+        } else {
+          resolve(records);
+        }
+      };
+
+      request.onerror = () => reject(request.error);
+    });
+  }
+
+  private clearDatabase(): Promise<void> {
+    if (!this.db) {
+      return Promise.resolve();
+    }
+
+    return new Promise((resolve, reject) => {
+      const transaction = this.db!.transaction(this.storeName, 'readwrite');
+      const store = transaction.objectStore(this.storeName);
+      const request = store.clear();
+
+      request.onsuccess = () => resolve();
+      request.onerror = () => reject(request.error);
+    });
+  }
+
+  private convertRecordsToCSV(records: SensorRecord[]): string {
+    const headers = [
+      'id',
+      'timestamp',
+      'sensorAPI',
+      'gpsLat',
+      'gpsLon',
+      'gpsAcc',
+      'accelX',
+      'accelY',
+      'accelZ',
+      'linearAccelX',
+      'linearAccelY',
+      'linearAccelZ',
+      'gyroX',
+      'gyroY',
+      'gyroZ',
+    ];
+
+    const escapeValue = (value: unknown): string => {
+      if (value === null || value === undefined) {
+        return '';
+      }
+      const text = String(value);
+      return /[",\n]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text;
+    };
+
+    const rows = records.map((record) =>
+      headers.map((header) => escapeValue((record as any)[header])).join(',')
+    );
+
+    return [headers.join(','), ...rows].join('\n');
+  }
+
+  private downloadCSV(content: string, filename: string): void {
+    const blob = new Blob([content], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement('a');
+    anchor.href = url;
+    anchor.download = filename;
+    document.body.appendChild(anchor);
+    anchor.click();
+    document.body.removeChild(anchor);
+    URL.revokeObjectURL(url);
+  }
+
+  private async downloadAndEmptyDB(): Promise<void> {
+    if (!this.db) {
+      this.updateStatus('Database not initialized yet.', 'error');
+      return;
+    }
+
+    try {
+      const records = await this.getAllRecords();
+      const filename = `sensor-records-${new Date().toISOString().replace(/[:.]/g, '-')}.csv`;
+      const csv = this.convertRecordsToCSV(records);
+      this.downloadCSV(csv, filename);
+      await this.clearDatabase();
+      this.updateStatus('Database downloaded and cleared', 'ready');
+    } catch (error) {
+      console.error('Failed to download and clear DB:', error);
+      this.updateStatus('Failed to download/clear DB', 'error');
+    }
+  }
+
+  private saveRecord(record: SensorRecord): void {
+    if (!this.db) {
+      console.warn('IndexedDB not ready, record not saved');
+      return;
+    }
+
+    const transaction = this.db.transaction(this.storeName, 'readwrite');
+    const store = transaction.objectStore(this.storeName);
+    const request = store.add(record);
+
+    request.onerror = () => {
+      console.error('Failed to save record:', request.error);
+    };
+  }
+
+  private createMeasurementRecord(): SensorRecord {
+    return {
+      timestamp: new Date().toISOString(),
+      sensorAPI: this.currentMeasurement.sensorAPI,
+      gpsLat: this.currentMeasurement.gpsLat,
+      gpsLon: this.currentMeasurement.gpsLon,
+      gpsAcc: this.currentMeasurement.gpsAcc,
+      accelX: this.currentMeasurement.accelX,
+      accelY: this.currentMeasurement.accelY,
+      accelZ: this.currentMeasurement.accelZ,
+      linearAccelX: this.currentMeasurement.linearAccelX,
+      linearAccelY: this.currentMeasurement.linearAccelY,
+      linearAccelZ: this.currentMeasurement.linearAccelZ,
+      gyroX: this.currentMeasurement.gyroX,
+      gyroY: this.currentMeasurement.gyroY,
+      gyroZ: this.currentMeasurement.gyroZ,
+    };
   }
 
   private startListeningGenericSensor(): void {
@@ -277,6 +479,7 @@ class SensorViewer {
       this.enableButton.disabled = true;
       this.enableButton.textContent = 'Sensors Active';
       this.sensorAPIEl.textContent = 'Generic Sensor API';
+      this.currentMeasurement.sensorAPI = 'Generic Sensor API';
       this.startGPS();
     } catch (error) {
       console.error('Failed to start generic sensors:', error);
@@ -290,21 +493,31 @@ class SensorViewer {
     }
 
     this.refreshTimer = window.setInterval(() => {
-        if (this.pendingLinearAccel) {
+      let shouldSave = false;
+
+      if (this.pendingLinearAccel) {
         this.updateLinearAccelerationDisplay(this.pendingLinearAccel);
         this.pendingLinearAccel = null;
+        shouldSave = true;
       }
       if (this.pendingAccel) {
         this.updateAccelerometerDisplay(this.pendingAccel);
         this.pendingAccel = null;
+        shouldSave = true;
       }
       if (this.pendingGyro) {
         this.updateGyroscopeDisplay(this.pendingGyro);
         this.pendingGyro = null;
+        shouldSave = true;
       }
       if (this.pendingGPS) {
         this.updateGPSDisplay(this.pendingGPS);
         this.pendingGPS = null;
+        shouldSave = true;
+      }
+
+      if (shouldSave) {
+        this.saveRecord(this.createMeasurementRecord());
       }
     }, this.refreshIntervalMs);
   }
@@ -317,6 +530,9 @@ class SensorViewer {
     this.linearAccelDisplay.X.textContent = x;
     this.linearAccelDisplay.Y.textContent = y;
     this.linearAccelDisplay.Z.textContent = z;
+    this.currentMeasurement.linearAccelX = typeof accel.x === 'number' ? accel.x : null;
+    this.currentMeasurement.linearAccelY = typeof accel.y === 'number' ? accel.y : null;
+    this.currentMeasurement.linearAccelZ = typeof accel.z === 'number' ? accel.z : null;
   }
 
   private updateGPSDisplay(gps: any): void {
@@ -326,6 +542,9 @@ class SensorViewer {
     this.gpsDisplay.latitude.textContent = latitude;
     this.gpsDisplay.longitude.textContent = longitude;
     this.gpsDisplay.accuracy.textContent = accuracy;
+    this.currentMeasurement.gpsLat = gps && typeof gps.latitude === 'number' ? gps.latitude : null;
+    this.currentMeasurement.gpsLon = gps && typeof gps.longitude === 'number' ? gps.longitude : null;
+    this.currentMeasurement.gpsAcc = gps && typeof gps.accuracy === 'number' ? gps.accuracy : null;
   }
 
   private startGPS(): void {
@@ -359,7 +578,7 @@ class SensorViewer {
     );
   }
 
-  private async updateAccelerometerDisplay(accel: any): Promise<void> {
+  private updateAccelerometerDisplay(accel: any): void {
     if (!accel) return;
     const x = typeof accel.x === 'number' ? accel.x.toFixed(2) : 'N/A';
     const y = typeof accel.y === 'number' ? accel.y.toFixed(2) : 'N/A';
@@ -367,6 +586,9 @@ class SensorViewer {
     this.accelDisplay.X.textContent = x;
     this.accelDisplay.Y.textContent = y;
     this.accelDisplay.Z.textContent = z;
+    this.currentMeasurement.accelX = typeof accel.x === 'number' ? accel.x : null;
+    this.currentMeasurement.accelY = typeof accel.y === 'number' ? accel.y : null;
+    this.currentMeasurement.accelZ = typeof accel.z === 'number' ? accel.z : null;
   }
 
   private updateGyroscopeDisplay(gyro: any): void {
@@ -377,6 +599,9 @@ class SensorViewer {
     this.gyroDisplay.X.textContent = x;
     this.gyroDisplay.Y.textContent = y;
     this.gyroDisplay.Z.textContent = z;
+    this.currentMeasurement.gyroX = typeof gyro.x === 'number' ? gyro.x : null;
+    this.currentMeasurement.gyroY = typeof gyro.y === 'number' ? gyro.y : null;
+    this.currentMeasurement.gyroZ = typeof gyro.z === 'number' ? gyro.z : null;
   }
 
   private updateGravityEstimate(accel: { x: number; y: number; z: number }): void {
