@@ -141,6 +141,13 @@
     .hidden {
       display: none;
     }
+
+    #vizCanvas {
+      border: 2px solid #667eea;
+      border-radius: 10px;
+      display: block;
+      margin: 20px auto;
+    }
   </style>
 </head>
 <body>
@@ -220,6 +227,10 @@
       </div>
 
       <div class="sensor-section">
+        <button id="visualizationButton">Visualization</button>
+      </div>
+
+      <div class="sensor-section">
         <button id="downloadClearButton">Download & empty DB</button>
       </div>
 
@@ -242,6 +253,11 @@
           <span class="value" id="linearAccelAvailable">Checking...</span>
         </div>
       </div>
+    </div>
+
+    <div id="visualizationContainer" class="hidden">
+      <button id="backButton">Back</button>
+      <canvas id="vizCanvas" width="400" height="400"></canvas>
     </div>
   </div>
 

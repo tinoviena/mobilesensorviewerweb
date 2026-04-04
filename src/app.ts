@@ -30,6 +30,11 @@ class SensorViewer {
   private gyroAvailableEl: HTMLElement;
   private linearAccelAvailableEl: HTMLElement;
   private downloadClearButton: HTMLButtonElement;
+  private visualizationButton: HTMLButtonElement;
+  private backButton: HTMLButtonElement;
+  private visualizationContainer: HTMLElement;
+  private vizCanvas: HTMLCanvasElement;
+  private vizCtx: CanvasRenderingContext2D;
   private db: IDBDatabase | null = null;
   private readonly dbName = 'sensor-viewer-db';
   private readonly storeName = 'measurements';
@@ -59,7 +64,7 @@ class SensorViewer {
   private gravityEstimate = { x: 0, y: 0, z: 0 };
   private readonly gravityAlpha = 0.8;
   private refreshTimer: number | null = null;
-  private readonly refreshIntervalMs = 800;
+  private readonly refreshIntervalMs = 100;
 
   constructor() {
     this.statusEl = this.getElementById('status');
@@ -98,6 +103,11 @@ class SensorViewer {
     this.gyroAvailableEl = this.getElementById('gyroAvailable');
     this.linearAccelAvailableEl = this.getElementById('linearAccelAvailable');
     this.downloadClearButton = this.getElementById('downloadClearButton') as HTMLButtonElement;
+    this.visualizationButton = this.getElementById('visualizationButton') as HTMLButtonElement;
+    this.backButton = this.getElementById('backButton') as HTMLButtonElement;
+    this.visualizationContainer = this.getElementById('visualizationContainer');
+    this.vizCanvas = this.getElementById('vizCanvas') as HTMLCanvasElement;
+    this.vizCtx = this.vizCanvas.getContext('2d')!;
 
     this.setupEventListeners();
     this.initDatabase();
@@ -115,6 +125,13 @@ class SensorViewer {
   private setupEventListeners(): void {
     this.enableButton.addEventListener('click', () => this.requestSensorPermission());
     this.downloadClearButton.addEventListener('click', () => this.downloadAndEmptyDB());
+    this.visualizationButton.addEventListener('click', () => this.showVisualization());
+    this.backButton.addEventListener('click', () => this.showMainView());
+    window.addEventListener('resize', () => {
+      if (!this.visualizationContainer.classList.contains('hidden')) {
+        this.resizeCanvas();
+      }
+    });
   }
 
   private checkDeviceMotionPermission(): void {
@@ -519,6 +536,7 @@ class SensorViewer {
       if (shouldSave) {
         this.saveRecord(this.createMeasurementRecord());
       }
+      this.updateVisualization();
     }, this.refreshIntervalMs);
   }
 
@@ -604,6 +622,28 @@ class SensorViewer {
     this.currentMeasurement.gyroZ = typeof gyro.z === 'number' ? gyro.z : null;
   }
 
+  private updateVisualization(): void {
+    if (this.visualizationContainer.classList.contains('hidden')) return;
+    const centerX = this.vizCanvas.width / 2;
+    const centerY = this.vizCanvas.height / 2;
+    const scale = 50; // pixels per m/s²
+    const accelX = Math.round((this.currentMeasurement.linearAccelX || 0) * 10) / 10;
+    const accelY = Math.round((this.currentMeasurement.linearAccelY || 0) * 10) / 10;
+    const accelZ = Math.round((this.currentMeasurement.linearAccelZ || 0) * 10) / 10;
+    let posX = centerX - scale * accelX;
+    let posY = centerY - scale * accelY;
+    const radius = Math.max(5, Math.min(35, 20 - 2 * accelZ));
+    posX = Math.max(radius, Math.min(this.vizCanvas.width - radius, posX));
+    posY = Math.max(radius, Math.min(this.vizCanvas.height - radius, posY));
+    this.vizCtx.clearRect(0, 0, this.vizCanvas.width, this.vizCanvas.height);
+    this.vizCtx.fillStyle = 'white';
+    this.vizCtx.fillRect(0, 0, this.vizCanvas.width, this.vizCanvas.height);
+    this.vizCtx.beginPath();
+    this.vizCtx.arc(posX, posY, radius, 0, 2 * Math.PI);
+    this.vizCtx.fillStyle = 'black';
+    this.vizCtx.fill();
+  }
+
   private updateGravityEstimate(accel: { x: number; y: number; z: number }): void {
     this.gravityEstimate.x = this.gravityAlpha * this.gravityEstimate.x + (1 - this.gravityAlpha) * accel.x;
     this.gravityEstimate.y = this.gravityAlpha * this.gravityEstimate.y + (1 - this.gravityAlpha) * accel.y;
@@ -643,6 +683,26 @@ class SensorViewer {
   private updateStatus(message: string, type: 'waiting' | 'ready' | 'error'): void {
     this.statusEl.textContent = message;
     this.statusEl.className = `status ${type}`;
+  }
+
+  private showVisualization(): void {
+    this.sensorContainer.classList.add('hidden');
+    this.visualizationContainer.classList.remove('hidden');
+    this.resizeCanvas();
+  }
+
+  private showMainView(): void {
+    this.visualizationContainer.classList.add('hidden');
+    this.sensorContainer.classList.remove('hidden');
+  }
+
+  private resizeCanvas(): void {
+    const container = this.visualizationContainer;
+    const availableWidth = container.clientWidth - 40; // account for margins/padding
+    const availableHeight = window.innerHeight - 200; // rough estimate for header/footer space
+    const size = Math.min(availableWidth, availableHeight, 400); // max 400 to prevent too large
+    this.vizCanvas.width = size;
+    this.vizCanvas.height = size;
   }
 }
 
