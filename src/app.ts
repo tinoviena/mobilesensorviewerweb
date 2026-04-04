@@ -5,6 +5,7 @@ class SensorViewer {
   private linearAccelDisplay: Record<string, HTMLElement>;
   private accelDisplay: Record<string, HTMLElement>;
   private gyroDisplay: Record<string, HTMLElement>;
+  private gpsDisplay: Record<string, HTMLElement>;
   private buildNumberEl: HTMLElement;
   private sensorAPIEl: HTMLElement;
   private accelAvailableEl: HTMLElement;
@@ -14,6 +15,8 @@ class SensorViewer {
   private pendingLinearAccel: any = null;
   private pendingAccel: any = null;
   private pendingGyro: any = null;
+  private pendingGPS: any = null;
+  private geoWatchId: number | null = null;
   private lastAccelReading: { x: number; y: number; z: number } | null = null;
   private gravityEstimate = { x: 0, y: 0, z: 0 };
   private readonly gravityAlpha = 0.8;
@@ -41,6 +44,12 @@ class SensorViewer {
       X: this.getElementById('gyroX'),
       Y: this.getElementById('gyroY'),
       Z: this.getElementById('gyroZ'),
+    };
+
+    this.gpsDisplay = {
+      latitude: this.getElementById('gpsLat'),
+      longitude: this.getElementById('gpsLon'),
+      accuracy: this.getElementById('gpsAcc'),
     };
 
     this.buildNumberEl = this.getElementById('buildNumber');
@@ -164,6 +173,8 @@ class SensorViewer {
       }
       this.ensureRefreshTimer();
     });
+
+    this.startGPS();
   }
 
   private startListeningDeviceMotion(): void {
@@ -186,6 +197,8 @@ class SensorViewer {
       }
       this.ensureRefreshTimer();
     });
+
+    this.startGPS();
   }
 
   private startListeningGenericSensor(): void {
@@ -253,7 +266,6 @@ class SensorViewer {
         gyro.start();
       } else {
         console.log('Gyroscope not available, will show N/A');
-        // Mark gyroscope as not available
         this.updateGyroscopeDisplay({ x: null, y: null, z: null });
       }
 
@@ -265,6 +277,7 @@ class SensorViewer {
       this.enableButton.disabled = true;
       this.enableButton.textContent = 'Sensors Active';
       this.sensorAPIEl.textContent = 'Generic Sensor API';
+      this.startGPS();
     } catch (error) {
       console.error('Failed to start generic sensors:', error);
       this.updateStatus('Failed to start sensors', 'error');
@@ -277,7 +290,7 @@ class SensorViewer {
     }
 
     this.refreshTimer = window.setInterval(() => {
-      if (this.pendingLinearAccel) {
+        if (this.pendingLinearAccel) {
         this.updateLinearAccelerationDisplay(this.pendingLinearAccel);
         this.pendingLinearAccel = null;
       }
@@ -288,6 +301,10 @@ class SensorViewer {
       if (this.pendingGyro) {
         this.updateGyroscopeDisplay(this.pendingGyro);
         this.pendingGyro = null;
+      }
+      if (this.pendingGPS) {
+        this.updateGPSDisplay(this.pendingGPS);
+        this.pendingGPS = null;
       }
     }, this.refreshIntervalMs);
   }
@@ -302,7 +319,47 @@ class SensorViewer {
     this.linearAccelDisplay.Z.textContent = z;
   }
 
-  private updateAccelerometerDisplay(accel: any): void {
+  private updateGPSDisplay(gps: any): void {
+    const latitude = gps && typeof gps.latitude === 'number' ? gps.latitude.toFixed(6) : 'N/A';
+    const longitude = gps && typeof gps.longitude === 'number' ? gps.longitude.toFixed(6) : 'N/A';
+    const accuracy = gps && typeof gps.accuracy === 'number' ? `${gps.accuracy.toFixed(1)} m` : 'N/A';
+    this.gpsDisplay.latitude.textContent = latitude;
+    this.gpsDisplay.longitude.textContent = longitude;
+    this.gpsDisplay.accuracy.textContent = accuracy;
+  }
+
+  private startGPS(): void {
+    if (!('geolocation' in navigator)) {
+      this.updateGPSDisplay(null);
+      return;
+    }
+
+    if (this.geoWatchId !== null) {
+      return;
+    }
+
+    this.geoWatchId = navigator.geolocation.watchPosition(
+      (position) => {
+        this.pendingGPS = {
+          latitude: position.coords.latitude,
+          longitude: position.coords.longitude,
+          accuracy: position.coords.accuracy,
+        };
+        this.ensureRefreshTimer();
+      },
+      (error) => {
+        console.warn('GPS watch position failed:', error);
+        this.updateGPSDisplay(null);
+      },
+      {
+        enableHighAccuracy: true,
+        maximumAge: 5000,
+        timeout: 10000,
+      }
+    );
+  }
+
+  private async updateAccelerometerDisplay(accel: any): Promise<void> {
     if (!accel) return;
     const x = typeof accel.x === 'number' ? accel.x.toFixed(2) : 'N/A';
     const y = typeof accel.y === 'number' ? accel.y.toFixed(2) : 'N/A';
