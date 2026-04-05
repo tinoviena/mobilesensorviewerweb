@@ -3,7 +3,7 @@ name: Build and publish GitHub Pages
 on:
   push:
     branches:
-      - main
+      - gh-pages
   workflow_dispatch:
 
 jobs:
@@ -21,7 +21,7 @@ jobs:
           cp index.html buildnr.txt publish/
           cp -r dist publish/
       - name: Upload artifact for GitHub Pages
-        uses: actions/upload-pages-artifact@v1
+        uses: actions/upload-pages-artifact@v4
         with:
           path: publish
 
