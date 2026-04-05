@@ -7,7 +7,8 @@
     "prebuild": "node ./scripts/update-build-number.js",
     "build": "tsc",
     "dev": "tsc --watch",
-    "serve": "python3 -m http.server 8080"
+    "serve": "python3 -m http.server 8080",
+    "gh-pages-copy": "mkdir -p docs &&cp index.html docs && cp -r dist docs && cp buildnr.txt docs/"
   },
   "devDependencies": {
     "typescript": "^5.3.3"
