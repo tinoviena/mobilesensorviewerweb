@@ -6,7 +6,6 @@
   "scripts": {
     "prebuild": "node ./scripts/update-build-number.js",
     "build": "tsc",
-    "postbuild": "sh ./scripts/tag-and-push.sh",
     "dev": "tsc --watch",
     "serve": "python3 -m http.server 8080",
     "gh-pages-copy": "sh ./scripts/gh-pages-copy.sh"
