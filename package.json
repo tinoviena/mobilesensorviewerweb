@@ -6,10 +6,10 @@
   "scripts": {
     "prebuild": "node ./scripts/update-build-number.js",
     "build": "tsc",
-    "postbuild": "node ./scripts/tag-and-push.js",
+    "postbuild": "sh ./scripts/tag-and-push.sh",
     "dev": "tsc --watch",
     "serve": "python3 -m http.server 8080",
-    "gh-pages-copy": "mkdir -p docs && cp index.html docs && sed -i 's|dist/app.js|js/app.js|g' index.html && cp -r dist docs && mv docs/dist docs/js && cp buildnr.txt docs/ && touch ./docs/.nojekyll"
+    "gh-pages-copy": "sh ./scripts/gh-pages-copy.sh"
   },
   "devDependencies": {
     "typescript": "^5.3.3"
