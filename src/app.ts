@@ -180,7 +180,7 @@ class SensorViewer {
         'Sensors not supported on this device/browser',
         'error'
       );
-      this.enableButton.disabled = true;
+      this.enableButton.classList.add('hidden');
     }
   }
 
@@ -224,8 +224,7 @@ class SensorViewer {
     this.sensorContainer.classList.remove('hidden');
     this.visualizationButton.classList.remove('hidden');
     this.updateStatus('Sensors enabled', 'ready');
-    this.enableButton.disabled = true;
-    this.enableButton.textContent = 'Sensors Active';
+    this.enableButton.classList.add('hidden');
     this.sensorAPIEl.textContent = 'DeviceMotionEvent (iOS)';
     this.currentMeasurement.sensorAPI = 'DeviceMotionEvent (iOS)';
 
@@ -251,8 +250,7 @@ class SensorViewer {
     this.sensorContainer.classList.remove('hidden');
     this.visualizationButton.classList.remove('hidden');
     this.updateStatus('Sensors enabled (legacy mode)', 'ready');
-    this.enableButton.disabled = true;
-    this.enableButton.textContent = 'Sensors Active';
+    this.enableButton.classList.add('hidden');
     this.sensorAPIEl.textContent = 'DeviceMotionEvent (Legacy)';
     this.currentMeasurement.sensorAPI = 'DeviceMotionEvent (Legacy)';
 
@@ -506,8 +504,7 @@ class SensorViewer {
       this.sensorContainer.classList.remove('hidden');
       this.visualizationButton.classList.remove('hidden');
       this.updateStatus('Sensors enabled (Generic API)', 'ready');
-      this.enableButton.disabled = true;
-      this.enableButton.textContent = 'Sensors Active';
+      this.enableButton.classList.add('hidden');
       this.sensorAPIEl.textContent = 'Generic Sensor API';
       this.currentMeasurement.sensorAPI = 'Generic Sensor API';
       this.startGPS();
@@ -761,6 +758,7 @@ class SensorViewer {
 
   private showVisualization(): void {
     this.sensorContainer.classList.add('hidden');
+    this.visualizationButton.classList.add('hidden');
     this.visualizationContainer.classList.remove('hidden');
     this.resizeCanvas();
   }
@@ -768,6 +766,7 @@ class SensorViewer {
   private showMainView(): void {
     this.visualizationContainer.classList.add('hidden');
     this.sensorContainer.classList.remove('hidden');
+    this.visualizationButton.classList.remove('hidden');
   }
 
   private resizeCanvas(): void {
