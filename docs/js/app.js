@@ -36,6 +36,7 @@ class SensorViewer {
         this.refreshIntervalMs = 16; // 60fps for smoother updates
         this.headingListening = false;
         this.currentHeading = 0;
+        this.isRecording = false;
         this.statusEl = this.getElementById('status');
         this.enableButton = this.getElementById('enableButton');
         this.sensorContainer = this.getElementById('sensorContainer');
@@ -67,6 +68,7 @@ class SensorViewer {
         this.gyroAvailableEl = this.getElementById('gyroAvailable');
         this.linearAccelAvailableEl = this.getElementById('linearAccelAvailable');
         this.downloadClearButton = this.getElementById('downloadClearButton');
+        this.recordingToggleButton = this.getElementById('recordingToggleButton');
         this.visualizationButton = this.getElementById('visualizationButton');
         this.backButton = this.getElementById('backButton');
         this.visualizationContainer = this.getElementById('visualizationContainer');
@@ -86,6 +88,13 @@ class SensorViewer {
     setupEventListeners() {
         this.enableButton.addEventListener('click', () => this.requestSensorPermission());
         this.downloadClearButton.addEventListener('click', () => this.downloadAndEmptyDB());
+        this.recordingToggleButton.addEventListener('click', () => {
+            this.isRecording = !this.isRecording;
+            this.recordingToggleButton.textContent = this.isRecording ? '⏹ Stop Recording' : '⏺ Start Recording';
+            this.recordingToggleButton.style.background = this.isRecording
+                ? 'linear-gradient(135deg, #e53e3e 0%, #c53030 100%)'
+                : '';
+        });
         this.visualizationButton.addEventListener('click', () => this.showVisualization());
         this.backButton.addEventListener('click', () => this.showMainView());
         window.addEventListener('resize', () => {
@@ -448,7 +457,7 @@ class SensorViewer {
                 this.pendingGPS = null;
                 shouldSave = true;
             }
-            if (shouldSave) {
+            if (shouldSave && this.isRecording) {
                 this.saveRecord(this.createMeasurementRecord());
             }
             this.updateVisualization();

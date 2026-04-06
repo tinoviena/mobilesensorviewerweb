@@ -71,6 +71,8 @@ class SensorViewer {
   private headingDisplay: HTMLElement;
   private headingListening: boolean = false;
   private currentHeading: number = 0;
+  private recordingToggleButton: HTMLButtonElement;
+  private isRecording: boolean = false;
 
   constructor() {
     this.statusEl = this.getElementById('status');
@@ -111,6 +113,7 @@ class SensorViewer {
     this.gyroAvailableEl = this.getElementById('gyroAvailable');
     this.linearAccelAvailableEl = this.getElementById('linearAccelAvailable');
     this.downloadClearButton = this.getElementById('downloadClearButton') as HTMLButtonElement;
+    this.recordingToggleButton = this.getElementById('recordingToggleButton') as HTMLButtonElement;
     this.visualizationButton = this.getElementById('visualizationButton') as HTMLButtonElement;
     this.backButton = this.getElementById('backButton') as HTMLButtonElement;
     this.visualizationContainer = this.getElementById('visualizationContainer');
@@ -133,6 +136,13 @@ class SensorViewer {
   private setupEventListeners(): void {
     this.enableButton.addEventListener('click', () => this.requestSensorPermission());
     this.downloadClearButton.addEventListener('click', () => this.downloadAndEmptyDB());
+    this.recordingToggleButton.addEventListener('click', () => {
+      this.isRecording = !this.isRecording;
+      this.recordingToggleButton.textContent = this.isRecording ? '⏹ Stop Recording' : '⏺ Start Recording';
+      this.recordingToggleButton.style.background = this.isRecording
+        ? 'linear-gradient(135deg, #e53e3e 0%, #c53030 100%)'
+        : '';
+    });
     this.visualizationButton.addEventListener('click', () => this.showVisualization());
     this.backButton.addEventListener('click', () => this.showMainView());
     window.addEventListener('resize', () => {
@@ -544,7 +554,7 @@ class SensorViewer {
         shouldSave = true;
       }
 
-      if (shouldSave) {
+      if (shouldSave && this.isRecording) {
         this.saveRecord(this.createMeasurementRecord());
       }
       this.updateVisualization();
