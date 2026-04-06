@@ -68,6 +68,9 @@ class SensorViewer {
   private readonly gravityAlpha = 0.8;
   private refreshTimer: number | null = null;
   private readonly refreshIntervalMs = 16; // 60fps for smoother updates
+  private headingDisplay: HTMLElement;
+  private headingListening: boolean = false;
+  private currentHeading: number = 0;
 
   constructor() {
     this.statusEl = this.getElementById('status');
@@ -97,6 +100,8 @@ class SensorViewer {
       longitude: this.getElementById('gpsLon'),
       accuracy: this.getElementById('gpsAcc'),
     };
+
+    this.headingDisplay = this.getElementById('headingDisplay');
 
     this.buildNumberEl = this.getElementById('buildNumber');
     this.loadBuildNumber();
@@ -217,6 +222,7 @@ class SensorViewer {
   private startListeningModern(): void {
     this.isListening = true;
     this.sensorContainer.classList.remove('hidden');
+    this.visualizationButton.classList.remove('hidden');
     this.updateStatus('Sensors enabled', 'ready');
     this.enableButton.disabled = true;
     this.enableButton.textContent = 'Sensors Active';
@@ -237,11 +243,13 @@ class SensorViewer {
     });
 
     this.startGPS();
+    this.startHeadingListener();
   }
 
   private startListeningDeviceMotion(): void {
     this.isListening = true;
     this.sensorContainer.classList.remove('hidden');
+    this.visualizationButton.classList.remove('hidden');
     this.updateStatus('Sensors enabled (legacy mode)', 'ready');
     this.enableButton.disabled = true;
     this.enableButton.textContent = 'Sensors Active';
@@ -262,6 +270,7 @@ class SensorViewer {
     });
 
     this.startGPS();
+    this.startHeadingListener();
   }
 
   private initDatabase(): void {
@@ -495,12 +504,14 @@ class SensorViewer {
 
       this.isListening = true;
       this.sensorContainer.classList.remove('hidden');
+      this.visualizationButton.classList.remove('hidden');
       this.updateStatus('Sensors enabled (Generic API)', 'ready');
       this.enableButton.disabled = true;
       this.enableButton.textContent = 'Sensors Active';
       this.sensorAPIEl.textContent = 'Generic Sensor API';
       this.currentMeasurement.sensorAPI = 'Generic Sensor API';
       this.startGPS();
+      this.startHeadingListener();
     } catch (error) {
       console.error('Failed to start generic sensors:', error);
       this.updateStatus('Failed to start sensors', 'error');
@@ -672,7 +683,7 @@ class SensorViewer {
     this.vizCtx.fillRect(0, 0, this.vizCanvas.width, this.vizCanvas.height);
     this.vizCtx.beginPath();
     this.vizCtx.arc(this.pearlPos.x, this.pearlPos.y, this.pearlRadius, 0, 2 * Math.PI);
-    this.vizCtx.fillStyle = 'black';
+    this.vizCtx.fillStyle = `hsl(${this.currentHeading}, 100%, 45%)`;
     this.vizCtx.fill();
   }
 
@@ -710,6 +721,37 @@ class SensorViewer {
       console.error('Failed to load build number:', error);
       this.buildNumberEl.textContent = 'Build #unknown';
     }
+  }
+
+  private startHeadingListener(): void {
+    if (this.headingListening) return;
+    this.headingListening = true;
+
+    let hasAbsolute = false;
+
+    // Android Chrome: deviceorientationabsolute gives alpha relative to geographic North
+    window.addEventListener('deviceorientationabsolute', (event: DeviceOrientationEvent) => {
+      hasAbsolute = true;
+      if (event.alpha !== null) {
+        this.updateHeadingDisplay(event.alpha);
+      }
+    });
+
+    // iOS Safari: webkitCompassHeading is 0–360° clockwise from North
+    // Also serves as fallback when deviceorientationabsolute is not fired
+    window.addEventListener('deviceorientation', (event: any) => {
+      if (hasAbsolute) return;
+      if (typeof event.webkitCompassHeading === 'number') {
+        this.updateHeadingDisplay(event.webkitCompassHeading);
+      }
+    });
+  }
+
+  private updateHeadingDisplay(degrees: number): void {
+    this.currentHeading = degrees;
+    const cardinals = ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW'];
+    const index = Math.round(degrees / 45) % 8;
+    this.headingDisplay.textContent = `${Math.round(degrees)}° ${cardinals[index]}`;
   }
 
   private updateStatus(message: string, type: 'waiting' | 'ready' | 'error'): void {
