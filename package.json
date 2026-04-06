@@ -8,7 +8,8 @@
     "build": "tsc",
     "postbuild": "node ./scripts/tag-and-push.js",
     "dev": "tsc --watch",
-    "serve": "python3 -m http.server 8080"
+    "serve": "python3 -m http.server 8080",
+    "gh-pages-copy": "mkdir -p docs && cp index.html docs && sed -i 's|dist/app.js|js/app.js|g' index.html && cp -r dist docs && mv docs/dist docs/js && cp buildnr.txt docs/ && touch ./docs/.nojekyll"
   },
   "devDependencies": {
     "typescript": "^5.3.3"
