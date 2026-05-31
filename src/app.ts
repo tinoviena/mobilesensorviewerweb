@@ -750,6 +750,8 @@ class SensorViewer {
       if (hasAbsolute) return;
       if (typeof event.webkitCompassHeading === 'number') {
         this.updateHeadingDisplay(event.webkitCompassHeading);
+      } else if (typeof event.alpha === 'number') {
+        this.updateHeadingDisplay(event.alpha);
       }
     });
   }
