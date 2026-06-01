@@ -36,5 +36,3 @@ jobs:
       - uses: actions/configure-pages@v4
       - name: Deploy to GitHub Pages
         uses: actions/deploy-pages@v1
-        with:
-          path: publish
